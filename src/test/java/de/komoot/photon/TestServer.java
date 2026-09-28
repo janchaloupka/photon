@@ -19,6 +19,10 @@ public class TestServer {
     private final Server testServer;
 
     public TestServer(String mainDirectory, String clusterName) throws IOException {
+        this(mainDirectory, clusterName, PhotonIndex.NAME);
+    }
+
+    public TestServer(String mainDirectory, String clusterName, String indexName) throws IOException {
         runner = new OpenSearchRunner();
         runner.onBuild((number, settingsBuilder) -> {
             settingsBuilder.put("http.cors.enabled", true);
@@ -41,7 +45,7 @@ public class TestServer {
         // wait for yellow status
         runner.ensureYellow();
 
-        var config = new PhotonDBConfig(mainDirectory, clusterName, List.of("127.0.0.1:" + runner.node().settings().get("http.port")));
+        var config = new PhotonDBConfig(mainDirectory, clusterName, List.of("127.0.0.1:" + runner.node().settings().get("http.port")), indexName);
 
         testServer = new Server(config, true);
     }
@@ -89,7 +93,7 @@ public class TestServer {
     public PhotonResult getByID(String id) {
         try {
             final var response = testServer.getClient().get(fn -> fn
-                    .index(PhotonIndex.NAME)
+                    .index(testServer.getIndexName())
                     .id(id), OpenSearchResult.class);
 
             return response.found() ? response.source() : null;
@@ -101,7 +105,7 @@ public class TestServer {
     public List<String> analyze(String analyzer, String text) {
         try {
             var response = testServer.getClient().indices().analyze(a -> a
-                    .index(PhotonIndex.NAME)
+                    .index(testServer.getIndexName())
                     .analyzer(analyzer)
                     .text(text));
             return response.tokens().stream().map(AnalyzeToken::token).collect(Collectors.toList());

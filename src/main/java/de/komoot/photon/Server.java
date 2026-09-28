@@ -43,8 +43,10 @@ public class Server {
 
     protected OpenSearchClient client;
     @Nullable private OpenSearchRunner runner = null;
+    private final String indexName;
 
     public Server(PhotonDBConfig config, boolean create) throws IOException {
+        indexName = config.getIndexName();
         final File dataDirectory = new File(config.getDataDirectory(), "photon_data");
         if (!create && config.getTransportAddresses().isEmpty()) {
             if (!dataDirectory.isDirectory()) {
@@ -116,7 +118,7 @@ public class Server {
 
     public void refreshIndexes() throws IOException {
         waitForReady();
-        client.indices().refresh(r -> r.index(PhotonIndex.NAME));
+        client.indices().refresh(r -> r.index(indexName));
     }
 
     public void shutdown() {
@@ -132,13 +134,13 @@ public class Server {
 
     public void recreateIndex(DatabaseProperties dbProperties) throws IOException {
         // delete any existing data
-        if (client.indices().exists(e -> e.index(PhotonIndex.NAME)).value()) {
-            client.indices().delete(d -> d.index(PhotonIndex.NAME));
+        if (client.indices().exists(e -> e.index(indexName)).value()) {
+            client.indices().delete(d -> d.index(indexName));
         }
 
-        new IndexSettingBuilder().setShards(5).createIndex(client, PhotonIndex.NAME);
+        new IndexSettingBuilder().setShards(5).createIndex(client, indexName);
 
-        new IndexMapping(dbProperties.getReverseOnly()).putMapping(client, PhotonIndex.NAME);
+        new IndexMapping(dbProperties.getReverseOnly()).putMapping(client, indexName);
 
         saveToDatabase(dbProperties);
     }
@@ -151,7 +153,7 @@ public class Server {
         if (dbProperties.getSynonymsInstalled() || synonymFile != null) {
 
             try {
-                (new IndexSettingBuilder()).setSynonymFile(synonymFile).updateIndex(client, PhotonIndex.NAME);
+                (new IndexSettingBuilder()).setSynonymFile(synonymFile).updateIndex(client, indexName);
             } catch (OpenSearchException ex) {
                 closeClientQuietly();
                 throw new UsageException("Could not install synonyms: " + ex.getMessage());
@@ -172,14 +174,14 @@ public class Server {
 
     public void saveToDatabase(DatabaseProperties dbProperties) throws IOException {
         client.indices().putMapping(m -> m
-                .index(PhotonIndex.NAME)
+                .index(indexName)
                 .meta(PhotonIndex.META_DB_PROPERTIES, JsonData.of(dbProperties)));
     }
 
     public DatabaseProperties loadFromDatabase() throws IOException {
         var meta = client.indices()
-                .getMapping(m -> m.index(PhotonIndex.NAME))
-                .get(PhotonIndex.NAME)
+                .getMapping(m -> m.index(indexName))
+                .get(indexName)
                 .mappings()
                 .meta();
 
@@ -204,28 +206,32 @@ public class Server {
 
     private Importer createImporter(DatabaseProperties dbProperties, int maxConcurrentRequests, boolean tuneRefresh) {
         registerPhotonDocSerializer(dbProperties);
-        return new de.komoot.photon.opensearch.Importer(client, maxConcurrentRequests, tuneRefresh);
+        return new de.komoot.photon.opensearch.Importer(client, indexName, maxConcurrentRequests, tuneRefresh);
     }
 
     public Updater createUpdater(DatabaseProperties dbProperties) {
         registerPhotonDocSerializer(dbProperties);
-        return new de.komoot.photon.opensearch.Updater(client);
+        return new de.komoot.photon.opensearch.Updater(client, indexName);
     }
 
     public SearchHandler<SimpleSearchRequest> createSearchHandler(int queryTimeoutSec) {
-        return new OpenSearchSearchHandler(client, queryTimeoutSec);
+        return new OpenSearchSearchHandler(client, indexName, queryTimeoutSec);
     }
 
     public SearchHandler<StructuredSearchRequest> createStructuredSearchHandler(int queryTimeoutSec) {
-        return new OpenSearchStructuredSearchHandler(client, queryTimeoutSec);
+        return new OpenSearchStructuredSearchHandler(client, indexName, queryTimeoutSec);
     }
 
     public SearchHandler<ReverseRequest> createReverseHandler(int queryTimeoutSec) {
-        return new OpenSearchReverseHandler(client, queryTimeoutSec);
+        return new OpenSearchReverseHandler(client, indexName, queryTimeoutSec);
     }
 
     protected OpenSearchClient getClient() {
         return client;
+    }
+
+    public String getIndexName() {
+        return indexName;
     }
 
     private void registerPhotonDocSerializer(DatabaseProperties dbProperties) {

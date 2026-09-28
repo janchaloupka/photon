@@ -1,6 +1,7 @@
 package de.komoot.photon.config;
 
 import com.beust.jcommander.Parameter;
+import de.komoot.photon.opensearch.PhotonIndex;
 import org.jspecify.annotations.NullMarked;
 
 import java.io.File;
@@ -12,9 +13,14 @@ public class PhotonDBConfig {
     public static final String GROUP = "Photon database options";
 
     public PhotonDBConfig(String dataDirectory, String cluster, List<String> transportAddresses) {
+        this(dataDirectory, cluster, transportAddresses, PhotonIndex.NAME);
+    }
+
+    public PhotonDBConfig(String dataDirectory, String cluster, List<String> transportAddresses, String indexName) {
         this.dataDirectory = dataDirectory;
         this.cluster = cluster;
         this.transportAddresses = transportAddresses;
+        this.indexName = indexName;
     }
 
     public PhotonDBConfig() {
@@ -36,6 +42,11 @@ public class PhotonDBConfig {
             """)
     private String cluster = "photon";
 
+    @Parameter(names = "-index", category = GROUP, placeholder = "NAME", description = """
+            Name of the OpenSearch index holding the Photon data
+            """)
+    private String indexName = PhotonIndex.NAME;
+
     public String getDataDirectory() {
         return this.dataDirectory;
     }
@@ -46,5 +57,9 @@ public class PhotonDBConfig {
 
     public List<String> getTransportAddresses() {
         return this.transportAddresses;
+    }
+
+    public String getIndexName() {
+        return this.indexName;
     }
 }

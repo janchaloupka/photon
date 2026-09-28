@@ -33,6 +33,9 @@ OpenSearch nodes. It takes a comma-separated list of node addresses.
 photon uses to the 'photon' cluster by default. This can be changed with the
 **-cluster** parameter if necessary.
 
+The data is stored in an OpenSearch index named 'photon' by default. This
+can be changed with the **-index** parameter if necessary.
+
 ## Running a photon server
 
 When you already have a database, either because you downloaded a database

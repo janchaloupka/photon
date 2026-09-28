@@ -1,5 +1,6 @@
 package de.komoot.photon.metrics;
 
+import de.komoot.photon.opensearch.PhotonIndex;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,7 +16,7 @@ class MetricsConfigTest {
     void testInit() {
         OpenSearchClient openSearchClient = new OpenSearchClient(null) {};
 
-        MetricsConfig metricsConfig = MetricsConfig.setupMetrics("prometheus", openSearchClient);
+        MetricsConfig metricsConfig = MetricsConfig.setupMetrics("prometheus", openSearchClient, PhotonIndex.NAME);
         assertNotNull(metricsConfig.getRegistry());
         assertNotNull(metricsConfig.getPlugin());
         assertTrue(metricsConfig.isEnabled());
@@ -26,7 +27,7 @@ class MetricsConfigTest {
     void testNoInit(String metricsType) {
         OpenSearchClient openSearchClient = new OpenSearchClient(null) {};
 
-        MetricsConfig metricsConfig = MetricsConfig.setupMetrics(metricsType, openSearchClient);
+        MetricsConfig metricsConfig = MetricsConfig.setupMetrics(metricsType, openSearchClient, PhotonIndex.NAME);
         assertThrows(IllegalStateException.class, metricsConfig::getRegistry);
         assertThrows(IllegalStateException.class, metricsConfig::getPlugin);
         assertFalse(metricsConfig.isEnabled());
@@ -42,7 +43,7 @@ class MetricsConfigTest {
     @Test
     void testHttpServerRequestsTimerExposesHistogramBuckets() {
         OpenSearchClient openSearchClient = new OpenSearchClient(null) {};
-        MetricsConfig metricsConfig = MetricsConfig.setupMetrics("prometheus", openSearchClient);
+        MetricsConfig metricsConfig = MetricsConfig.setupMetrics("prometheus", openSearchClient, PhotonIndex.NAME);
         PrometheusMeterRegistry registry = metricsConfig.getRegistry();
 
         // Mirror the timer emitted by io.javalin.micrometer.MicrometerPlugin for each request.
@@ -69,7 +70,7 @@ class MetricsConfigTest {
     @Test
     void testUnrelatedTimerDoesNotExposeHistogramBuckets() {
         OpenSearchClient openSearchClient = new OpenSearchClient(null) {};
-        MetricsConfig metricsConfig = MetricsConfig.setupMetrics("prometheus", openSearchClient);
+        MetricsConfig metricsConfig = MetricsConfig.setupMetrics("prometheus", openSearchClient, PhotonIndex.NAME);
         PrometheusMeterRegistry registry = metricsConfig.getRegistry();
 
         registry.timer("some.unrelated.timer").record(Duration.ofMillis(5));

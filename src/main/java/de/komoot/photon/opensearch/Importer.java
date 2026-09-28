@@ -51,12 +51,11 @@ public class Importer implements de.komoot.photon.Importer {
     private static final String FALLBACK_REFRESH_INTERVAL = "1s";
 
     private final OpenSearchClient client;
+    private final String indexName;
     private final BlockingQueue<BulkRequest> bulkQueue;
     // Compared by reference identity in submitLoop. The dummy delete is only there so
     // BulkRequest.Builder.build() passes its required-operations check.
-    private final BulkRequest poison = new BulkRequest.Builder()
-            .operations(op -> op.delete(d -> d.index(PhotonIndex.NAME).id("__photon_poison_pill__")))
-            .build();
+    private final BulkRequest poison;
     private final List<Thread> submitThreads;
     private final AtomicReference<@Nullable Throwable> firstFailure = new AtomicReference<>();
     private final AtomicBoolean hasPrintedNoUpdates = new AtomicBoolean(false);
@@ -74,8 +73,12 @@ public class Importer implements de.komoot.photon.Importer {
         long bytes = 0;
     }
 
-    public Importer(OpenSearchClient client, int maxConcurrentRequests, boolean tuneRefresh) {
+    public Importer(OpenSearchClient client, String indexName, int maxConcurrentRequests, boolean tuneRefresh) {
         this.client = client;
+        this.indexName = indexName;
+        this.poison = new BulkRequest.Builder()
+                .operations(op -> op.delete(d -> d.index(indexName).id("__photon_poison_pill__")))
+                .build();
         final int threads = Math.max(1, maxConcurrentRequests);
         // One slot keeps a fast submitter from idling between builds. Larger buffers
         // multiply the live-bulk footprint and OOM the embedded OpenSearch under load.
@@ -111,10 +114,10 @@ public class Importer implements de.komoot.photon.Importer {
                 if (hasPrintedNoUpdates.compareAndSet(false, true)) {
                     LOGGER.warn("Documents have no place_id. Updates will not be possible.");
                 }
-                b.builder.operations(op -> op.create(i -> i.index(PhotonIndex.NAME).document(doc)));
+                b.builder.operations(op -> op.create(i -> i.index(indexName).document(doc)));
             } else {
                 final String uuid = PhotonDoc.makeUid(placeID, objectId++);
-                b.builder.operations(op -> op.create(i -> i.index(PhotonIndex.NAME).id(uuid).document(doc)));
+                b.builder.operations(op -> op.create(i -> i.index(indexName).id(uuid).document(doc)));
             }
             b.bytes += estimateSize(doc);
             // A single doc over MAX_BULK_BYTES still flushes on its own; an oversized request
@@ -174,7 +177,7 @@ public class Importer implements de.komoot.photon.Importer {
         }
 
         try {
-            client.indices().refresh(r -> r.index(PhotonIndex.NAME));
+            client.indices().refresh(r -> r.index(indexName));
         } catch (IOException e) {
             LOGGER.warn("Refresh of database failed", e);
         }
@@ -254,11 +257,11 @@ public class Importer implements de.komoot.photon.Importer {
     private boolean setRefreshInterval(String interval) {
         try {
             client.indices().putSettings(s -> s
-                    .index(PhotonIndex.NAME)
+                    .index(indexName)
                     .settings(set -> set.refreshInterval(Time.of(t -> t.time(interval)))));
             return true;
         } catch (IOException | OpenSearchException e) {
-            LOGGER.warn("Could not set refresh_interval={} on index {}.", interval, PhotonIndex.NAME, e);
+            LOGGER.warn("Could not set refresh_interval={} on index {}.", interval, indexName, e);
             return false;
         }
     }
@@ -272,11 +275,11 @@ public class Importer implements de.komoot.photon.Importer {
     private String readRefreshInterval() {
         try {
             final var state = client.indices()
-                    .getSettings(g -> g.index(PhotonIndex.NAME))
-                    .get(PhotonIndex.NAME);
+                    .getSettings(g -> g.index(indexName))
+                    .get(indexName);
             return state == null ? null : findRefreshInterval(state.settings(), 4);
         } catch (IOException | OpenSearchException e) {
-            LOGGER.warn("Could not read refresh_interval from index {}.", PhotonIndex.NAME, e);
+            LOGGER.warn("Could not read refresh_interval from index {}.", indexName, e);
             return null;
         }
     }
