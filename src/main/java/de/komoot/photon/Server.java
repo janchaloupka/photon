@@ -181,7 +181,7 @@ public class Server {
     public DatabaseProperties loadFromDatabase() throws IOException {
         var meta = client.indices()
                 .getMapping(m -> m.index(indexName))
-                .get(indexName)
+                .result().values().iterator().next()
                 .mappings()
                 .meta();
 

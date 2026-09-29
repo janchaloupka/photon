@@ -88,7 +88,7 @@ public class OpenSearchMetrics implements MeterBinder {
 
         try {
             documentCount = client.count(c -> c.index(indexName)).count();
-            var stats = client.indices().stats(s -> s.index(indexName)).indices().get(indexName);
+            var stats = client.indices().stats(s -> s.index(indexName)).indices().values().iterator().next();
             if (stats != null) {
                 if (stats.primaries().store() != null) {
                     indexSizeBytes = stats.primaries().store().sizeInBytes();
